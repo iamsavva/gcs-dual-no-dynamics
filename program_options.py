@@ -28,7 +28,7 @@ class ProgramOptions:
         # initial state -- for regular GCS
         self.x0 = None  # type: npt.NDArray
         # solve MICP or convex relaxation
-        self.use_convex_relaxation = True  # type: bool
+        self.use_convex_relaxation = False  # type: bool
         self.max_rounding_trials = 100  # type: int
         self.preprocessing = True  # type: bool
 
@@ -42,7 +42,7 @@ class ProgramOptions:
         # degree of the SOS polynomial edge constraint
         self.max_constraint_degree = 4  # type: int
         # whether to add more constraints by multiplying inequalities through
-        self.putinar = False  # type: bool
+        self.putinar = True  # type: bool
         # push up potential at points
         self.push_up_points = []  # type: T.List[T.Tuple[str, npt.NDArray]]
         # push up potential at boxes

@@ -18,7 +18,9 @@ from pydrake.geometry.optimization import (  # pylint: disable=import-error, no-
     HPolyhedron,
     Point,
     ConvexSet,
+    Hyperrectangle,
 )
+import numbers
 
 from pydrake.symbolic import (  # pylint: disable=import-error, no-name-in-module, unused-import
     Polynomial,
@@ -26,6 +28,12 @@ from pydrake.symbolic import (  # pylint: disable=import-error, no-name-in-modul
     Variables,
     Expression,
 )
+
+import plotly.graph_objects as go  # pylint: disable=import-error
+from plotly.express.colors import sample_colorscale  # pylint: disable=import-error
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+
 from program_options import ProgramOptions, FREE_POLY, PSD_POLY
 
 from util import (
@@ -37,6 +45,10 @@ from util import (
     ERROR,
 )  # pylint: disable=import-error, no-name-in-module, unused-import
 from gcs_util import get_edge_name, make_quadratic_cost_function_matrices
+
+import logging
+logging.getLogger("drake").setLevel(logging.WARNING)
+np.set_printoptions(suppress=True) 
 
 
 class Vertex:
@@ -58,6 +70,9 @@ class Vertex:
         if isinstance(convex_set, HPolyhedron):
             self.set_type = HPolyhedron
             self.state_dim = convex_set.A().shape[1]
+        elif isinstance(convex_set, Hyperrectangle):
+            self.set_type = Hyperrectangle
+            self.state_dim = convex_set.lb().shape[0]
         elif isinstance(convex_set, Point):
             self.set_type = Point
             self.state_dim = convex_set.x().shape[0]
@@ -91,6 +106,11 @@ class Vertex:
             # inequalities of the form b[i] - a.T x = g_i(x) >= 0
             A, b = self.convex_set.A(), self.convex_set.b()
             self.set_inequalities = [b[i] - A[i].dot(self.x) for i in range(len(b))]
+        if self.set_type == Hyperrectangle:
+            hpoly = self.convex_set.MakeHPolyhedron()
+            # inequalities of the form b[i] - a.T x = g_i(x) >= 0
+            A, b = hpoly.A(), hpoly.b()
+            self.set_inequalities = [b[i] - A[i].dot(self.x) for i in range(len(b))]
         elif self.set_type == Point:
             self.set_inequalities = []
 
@@ -115,7 +135,7 @@ class Vertex:
                 # potential is PSD polynomial
                 self.potential, _ = prog.NewSosPolynomial(
                     self.vars, self.potential_poly_deg
-                )
+                ) # i.e.: convex
             else:
                 raise NotImplementedError("potential type not supported")
 
@@ -256,6 +276,8 @@ class PolynomialDualGCS:
         self.edges = dict()  # type: T.Dict[str, Edge]
         self.prog = MathematicalProgram()  # type: MathematicalProgram
         self.options = options
+
+        self.value_function_solution = None
 
         # variables for GCS ground truth solves
         self.gcs_vertices = dict()  # type: T.Dict[str, GraphOfConvexSets.Vertex]
@@ -398,16 +420,16 @@ class PolynomialDualGCS:
         )
 
         # solve the program
-        self.solution = mosek_solver.Solve(self.prog, solver_options=solver_options)
+        self.value_function_solution = mosek_solver.Solve(self.prog, solver_options=solver_options)
         timer.dt("Solve")
-        diditwork(self.solution)
+        diditwork(self.value_function_solution)
 
         # debug solver options
         if options.solver_debug_mode:
             with open("solver_debug") as f:
                 print(f.read())
 
-        return self.solution
+        return self.value_function_solution
 
     def solve_for_true_shortest_path(
         self, vertex_name: str, point: npt.NDArray, options: ProgramOptions = None
@@ -459,8 +481,55 @@ class PolynomialDualGCS:
             vertex_name_path.append(e.v().name())
 
         self.gcs.RemoveVertex(start_vertex)
+        
 
         return cost, vertex_name_path
+    
+    def get_true_cost_for_region_plot_2d(self, vertex_name:str, dx:float=0.1):
+        vertex = self.vertices[vertex_name]
+        assert vertex.set_type == Hyperrectangle, "vertex not a Hyperrectangle, can't make a plot"
+        assert len(vertex.convex_set.lb()) == 1, "only 1d cases for now"
+        lb = vertex.convex_set.lb()[0]
+        ub = vertex.convex_set.ub()[0]
+        x = np.linspace(lb, ub, int((ub-lb)/dx), endpoint=True)
+        y = []
+        mode_sequence = []
+        for x_val in x:
+            cost, ms = self.solve_for_true_shortest_path(vertex_name, np.array([x_val]))
+            y.append(cost)
+            mode_sequence.append( ' '.join(ms) )
+        return x, y, mode_sequence
+
+    def get_policy_cost_for_region_plot(self, vertex_name:str, dx:float=0.1):
+        vertex = self.vertices[vertex_name]
+        assert vertex.set_type == Hyperrectangle, "vertex not a Hyperrectangle, can't make a plot"
+        assert len(vertex.convex_set.lb()) == 1, "only 1d cases for now"
+        lb = vertex.convex_set.lb()[0]
+        ub = vertex.convex_set.ub()[0]
+        x = np.linspace(lb, ub, int((ub-lb)/dx), endpoint=True)
+        y = []
+        for x_val in x:
+            cost = vertex.cost_at_point(np.array([x_val]), self.value_function_solution)
+            y.append(cost)
+        return x, y
+    
+    def make_plots(self, vertex_name, dx=0.5):
+        x_true, y_true, ms_true = self.get_true_cost_for_region_plot_2d(vertex_name, dx)
+        x_policy, y_policy = self.get_policy_cost_for_region_plot(vertex_name, dx)
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=x_true, y=y_true, mode='lines', name="ground truth", line=dict(color="chartreuse") ))
+        fig.add_trace(go.Scatter(x=x_policy, y=y_policy, mode='lines', name="policy", line=dict(color="blue") ))
+
+        fig.update_layout(height=800, width=800, title_text="Value functions ")
+        # fig.update_yaxes(title_text="Cost-to-go")
+        # fig.update_xaxes(title_text="x")
+        fig.show()
+        return fig
+
+
+    # def get_k_step_lookahead_cost_for_region_plot(self, vertex_name:str, dx:float=0.1, convex_relaxation:bool=True):
+        
 
 
 def random_uniform_graph_generator(
@@ -476,13 +545,13 @@ def random_uniform_graph_generator(
     goal_num: int = 5,
     goal_uniform: bool = False,
     options: ProgramOptions = ProgramOptions(),
-):
+)-> T.List[T.List[Vertex]]:
     gcs = PolynomialDualGCS(options)
     # full connectivity between edges (very unnecessary)
     # TODO: random connectivity? 3 neighbour connectivity?
 
     def box(a, b):
-        return HPolyhedron.MakeBox([a], [b])
+        return Hyperrectangle([a], [b])
     
     ###############################################################
     # make vertices
@@ -550,6 +619,7 @@ def random_uniform_graph_generator(
 
     # synthesize policy
     gcs.solve_policy()
+    return gcs, layers
 
 def simple_test():
     options = ProgramOptions()
