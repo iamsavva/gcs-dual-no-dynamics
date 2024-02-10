@@ -511,6 +511,7 @@ def random_uniform_graph_generator(
                 x_now += width
             k += 1
         layers.append(layer)
+            
     
     # add target potential
     zero_potential = lambda _: Expression(0)
@@ -519,15 +520,15 @@ def random_uniform_graph_generator(
     if goal_uniform:
         points = np.array(list(range(goal_num))+0.5) * (x_max-x_min) / goal_num
         for p in points:
-            v_name = str(num_layers) + "-" + str(index)
+            v_name = str(num_layers-1) + "-" + str(index)
             v = gcs.AddTargetVertex(v_name, Point([p]), zero_potential)
             layer.append(v)
             index += 1
     else:
         x_now = np.random.uniform(min_goal_blank, max_goal_blank, 1)[0]
         while x_now < x_max:
-            v_name = str(num_layers) + "-" + str(index)
-            gcs.AddTargetVertex(v_name, Point([x_now]), zero_potential)
+            v_name = str(num_layers-1) + "-" + str(index)
+            v = gcs.AddTargetVertex(v_name, Point([x_now]), zero_potential)
             x_now += np.random.uniform(min_goal_blank, max_goal_blank, 1)[0]
             layer.append(v)
             index += 1
