@@ -500,7 +500,7 @@ class PolynomialDualGCS:
             cost, ms, _ = self.solve_for_true_shortest_path(vertex_name, np.array([x_val]))
             y.append(cost)
             mode_sequence.append( ' '.join(ms) )
-        return x, y, mode_sequence
+        return x, np.array(y), np.array(mode_sequence)
 
     def get_policy_cost_for_region_plot(self, vertex_name:str, dx:float=0.1):
         vertex = self.vertices[vertex_name]
@@ -513,7 +513,7 @@ class PolynomialDualGCS:
         for x_val in x:
             cost = vertex.cost_at_point(np.array([x_val]), self.value_function_solution)
             y.append(cost)
-        return x, y
+        return x, np.array(y)
     
     def make_plots(self, vertex_name, dx=0.5):
         x_true, y_true, ms_true = self.get_true_cost_for_region_plot_2d(vertex_name, dx)
@@ -527,7 +527,16 @@ class PolynomialDualGCS:
         # fig.update_yaxes(title_text="Cost-to-go")
         # fig.update_xaxes(title_text="x")
         # fig.show()
-        return fig
+
+        lower_bound_gap = (1 - y_policy/y_true)*100
+        INFO("polynomial policy statistics")
+        INFO("max lower bound gap ", np.round(np.max(lower_bound_gap),2))
+        INFO("mean lower bound gap ", np.round(np.mean(lower_bound_gap),2))
+        INFO("---------------------")
+
+        return fig, y_true
+    
+
 
 
     # def get_k_step_lookahead_cost_for_region_plot(self, vertex_name:str, dx:float=0.1, convex_relaxation:bool=True):

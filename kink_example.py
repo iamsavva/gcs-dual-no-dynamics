@@ -237,7 +237,7 @@ def plot_policy_rollout(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:
     for x_val in x:
         cost = rollout_m_step_policy(gcs, layers, m, vertex, np.array([x_val]), layer_index)
         y.append(cost)
-    return x, y
+    return x, np.array(y)
     
 
 
