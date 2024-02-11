@@ -12,7 +12,6 @@ from pydrake.geometry.optimization import (  # pylint: disable=import-error, no-
 FREE_POLY = "free_poly"
 PSD_POLY = "psd_poly"
 
-
 class ProgramOptions:
     def __init__(self):
         # -----------------------------------------------------------------------------------

@@ -346,12 +346,13 @@ class PolynomialDualGCS:
         )
         # building proper GCS
         self.vertices[name] = v
-        self.gcs_vertices[name] = self.gcs.AddVertex(convex_set, name)
+
 
         # in the GCS graph, add a fake edge to the fake target vetex
-        self.gcs.AddEdge(
-            self.gcs_vertices[name], self.gcs_vertices["target"]
-        )  # TODO: fix me
+        gcs_v = self.gcs.AddVertex(convex_set, name)
+        self.gcs_vertices[name] = gcs_v
+        self.gcs.AddEdge(gcs_v, self.gcs_vertices["target"])
+        gcs_v.AddCost(specific_potential(gcs_v.x()))
         return v
 
     def AddEdge(
@@ -524,103 +525,12 @@ class PolynomialDualGCS:
         fig.update_layout(height=800, width=800, title_text="Value functions ")
         # fig.update_yaxes(title_text="Cost-to-go")
         # fig.update_xaxes(title_text="x")
-        fig.show()
+        # fig.show()
         return fig
 
 
     # def get_k_step_lookahead_cost_for_region_plot(self, vertex_name:str, dx:float=0.1, convex_relaxation:bool=True):
         
-
-
-def random_uniform_graph_generator(
-    num_layers: int = 5,
-    x_min: float = 0,
-    x_max: float = 10,
-    min_blank: float = 0.5,
-    max_blank: float = 1.5,
-    min_region: float = 0.5,
-    max_region: float = 1.5,
-    min_goal_blank: float = 1,
-    max_goal_blank: float = 2,
-    goal_num: int = 5,
-    goal_uniform: bool = False,
-    options: ProgramOptions = ProgramOptions(),
-)-> T.List[T.List[Vertex]]:
-    gcs = PolynomialDualGCS(options)
-    # full connectivity between edges (very unnecessary)
-    # TODO: random connectivity? 3 neighbour connectivity?
-
-    def box(a, b):
-        return Hyperrectangle([a], [b])
-    
-    ###############################################################
-    # make vertices
-
-    layers = []
-    # add first layer
-    start_vertex = gcs.AddVertex("0-0", box(x_min, x_max))
-    layers.append([start_vertex])
-
-    # for every layer
-    for n in range(1, num_layers - 1):
-        layer = []
-        x_now = 0.0
-        k = n % 2
-        index = 0
-        while x_now < x_max:
-            # make a skip
-            if k % 2 == 0:
-                x_now += np.random.uniform(min_blank, max_blank, 1)[0]
-            else:
-                width = np.random.uniform(min_region, max_region, 1)[0]
-                v_name = str(n) + "-" + str(index)
-                v = gcs.AddVertex(v_name, box(x_now, min(x_now + width, x_max)))
-                layer.append(v)
-                index += 1
-                x_now += width
-            k += 1
-        layers.append(layer)
-            
-    
-    # add target potential
-    zero_potential = lambda _: Expression(0)
-    layer = []
-    index = 0
-    if goal_uniform:
-        points = np.array(list(range(goal_num))+0.5) * (x_max-x_min) / goal_num
-        for p in points:
-            v_name = str(num_layers-1) + "-" + str(index)
-            v = gcs.AddTargetVertex(v_name, Point([p]), zero_potential)
-            layer.append(v)
-            index += 1
-    else:
-        x_now = np.random.uniform(min_goal_blank, max_goal_blank, 1)[0]
-        while x_now < x_max:
-            v_name = str(num_layers-1) + "-" + str(index)
-            v = gcs.AddTargetVertex(v_name, Point([x_now]), zero_potential)
-            x_now += np.random.uniform(min_goal_blank, max_goal_blank, 1)[0]
-            layer.append(v)
-            index += 1
-    layers.append(layer)
-
-
-    ###############################################################
-    # make edges
-    quadratic_cost = lambda x,y: (x[0]-y[0])**2
-    for i, layer in enumerate(layers[:-1]):
-        next_layer = layers[i+1]
-        for left_v in layer:
-            for right_v in next_layer:
-                gcs.AddEdge(left_v, right_v, quadratic_cost)
-
-    
-    # push up on start
-    gcs.MaxCostOverABox(start_vertex, [x_min], [x_max])
-
-    # synthesize policy
-    gcs.solve_policy()
-    return gcs, layers
-
 def simple_test():
     options = ProgramOptions()
     options.use_convex_relaxation = False
@@ -645,4 +555,4 @@ def simple_test():
 
 
 if __name__ == "__main__":
-    random_uniform_graph_generator()
+    simple_test()
