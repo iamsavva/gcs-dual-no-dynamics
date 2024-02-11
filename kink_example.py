@@ -172,14 +172,15 @@ def plot_a_layered_graph(layers:T.List[T.List[Vertex]]):
     )
     return fig
 
-def build_m_step_horizon_from_layers(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:int, start_vertex:Vertex, layer_index:int, dx:float=0.1):
+def build_m_step_horizon_from_layers(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:int, start_vertex:Vertex, layer_index:int):
     new_gcs = PolynomialDualGCS(gcs.options)
     init_vertex = new_gcs.AddVertex(start_vertex.name, start_vertex.convex_set)
     new_layers = []
     new_layers.append([init_vertex])
 
     # for every layer
-    last_index = min(len(layers), layer_index+m)
+    last_index = min(len(layers)-1, layer_index+m)
+    # WARN(len(layers), last_index)
     for n in range(layer_index+1, last_index):
         layer = []
         for v in layers[n]:
@@ -187,7 +188,6 @@ def build_m_step_horizon_from_layers(gcs:PolynomialDualGCS, layers:T.List[T.List
             layer.append(new_v)
         new_layers.append(layer)
             
-    
     # add target potential
     layer = []
     for v in layers[last_index]:
@@ -205,9 +205,41 @@ def build_m_step_horizon_from_layers(gcs:PolynomialDualGCS, layers:T.List[T.List
             for right_v in next_layer:
                 new_gcs.AddEdge(left_v, right_v, quadratic_cost)
 
-    x, y, ms = new_gcs.get_true_cost_for_region_plot_2d(start_vertex.name, dx=dx)
-    # display_gcs_graph(new_gcs.gcs)
-    return x, y, ms
+    return new_gcs
+
+def plot_m_step_horizon_from_layers(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:int, start_vertex:Vertex, layer_index:int, dx:float=0.1):
+    new_gcs = build_m_step_horizon_from_layers(gcs, layers, m, start_vertex, layer_index)
+    x, y, _= new_gcs.get_true_cost_for_region_plot_2d(start_vertex.name, dx=dx)
+    return x, y
+
+def rollout_m_step_policy(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:int, vertex:Vertex, point:npt.NDArray, layer_index:int) -> float:
+    if layer_index < len(layers)-1:
+        next_vertex, next_point = get_next_action(gcs, layers, m, vertex, point, layer_index)
+        cost = rollout_m_step_policy(gcs, layers, m, next_vertex, next_point, layer_index+1)
+        return 1.0 + (point[0]-next_point[0])**2 + cost
+    else:
+        return 0.0
+
+def get_next_action(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:int, vertex:Vertex, point:npt.NDArray, layer_index:int):
+    # return next vertex and next point
+    new_gcs = build_m_step_horizon_from_layers(gcs, layers, m, vertex, layer_index)
+    _, vertex_name_path, value_path = new_gcs.solve_for_true_shortest_path(vertex.name, point)
+    return gcs.vertices[vertex_name_path[1]], value_path[1]
+
+
+def plot_policy_rollout(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:int, vertex:Vertex, layer_index:int, dx:float=0.1):
+    assert vertex.set_type == Hyperrectangle, "vertex not a Hyperrectangle, can't make a plot"
+    assert len(vertex.convex_set.lb()) == 1, "only 1d cases for now"
+    lb = vertex.convex_set.lb()[0]
+    ub = vertex.convex_set.ub()[0]
+    x = np.linspace(lb, ub, int((ub-lb)/dx), endpoint=True)
+    y = []
+    for x_val in x:
+        cost = rollout_m_step_policy(gcs, layers, m, vertex, np.array([x_val]), layer_index)
+        y.append(cost)
+    return x, y
+    
+
 
 def display_gcs_graph(gcs, graph_name="temp") -> None:
     """Visually inspect the graph. If solution acquired -- also displays the solution."""
@@ -226,7 +258,8 @@ def display_gcs_graph(gcs, graph_name="temp") -> None:
 if __name__ == "__main__":
     gcs, layers = random_uniform_graph_generator()
     v_0 = layers[0][0]
-    x,y,_ = build_m_step_horizon_from_layers(gcs, layers, 1, v_0, 0)
+    plot_policy_rollout(gcs, layers, 1, v_0, 0)
+    # x,y,_ = build_m_step_horizon_from_layers(gcs, layers, 1, v_0, 0)
     
 
 

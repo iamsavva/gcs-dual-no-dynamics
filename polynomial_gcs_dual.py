@@ -434,7 +434,7 @@ class PolynomialDualGCS:
 
     def solve_for_true_shortest_path(
         self, vertex_name: str, point: npt.NDArray, options: ProgramOptions = None
-    ) -> T.Tuple[float, T.List[str]]:
+    ) -> T.Tuple[float, T.List[str], T.List[npt.NDArray]]:
         """
         Solve for an optimal GCS path from point inside vertex_name vertex.
         Pass the options vector with specifications of convex relaxation / rounding / etc.
@@ -447,7 +447,7 @@ class PolynomialDualGCS:
             options = self.options
         assert vertex_name in self.vertices
         assert self.vertices[vertex_name].convex_set.PointInSet(
-            point, 1e-5
+            point, 1e-3
         )  # evaluate only on set
 
         start_vertex = self.gcs.AddVertex(Point(point), "start")
@@ -478,13 +478,14 @@ class PolynomialDualGCS:
 
         edge_path = self.gcs.GetSolutionPath(start_vertex, target_vertex, result)
         vertex_name_path = [vertex_name]
+        value_path = [point]
         for e in edge_path:
             vertex_name_path.append(e.v().name())
+            value_path.append(result.GetSolution(e.v().x()))
 
         self.gcs.RemoveVertex(start_vertex)
         
-
-        return cost, vertex_name_path
+        return cost, vertex_name_path, value_path
     
     def get_true_cost_for_region_plot_2d(self, vertex_name:str, dx:float=0.1):
         vertex = self.vertices[vertex_name]
@@ -496,7 +497,7 @@ class PolynomialDualGCS:
         y = []
         mode_sequence = []
         for x_val in x:
-            cost, ms = self.solve_for_true_shortest_path(vertex_name, np.array([x_val]))
+            cost, ms, _ = self.solve_for_true_shortest_path(vertex_name, np.array([x_val]))
             y.append(cost)
             mode_sequence.append( ' '.join(ms) )
         return x, y, mode_sequence

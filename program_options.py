@@ -37,7 +37,7 @@ class ProgramOptions:
         # degree of the potential per vertex
         self.potential_poly_deg = 2  # type: int
         # FREE_POLY -- potential is a free; PSD_POLY -- potential is PSD
-        self.pot_type = FREE_POLY  # type: str
+        self.pot_type = PSD_POLY  # type: str
         # degree of the SOS polynomial edge constraint
         self.max_constraint_degree = 4  # type: int
         # whether to add more constraints by multiplying inequalities through
@@ -53,9 +53,9 @@ class ProgramOptions:
         # mosek solver details
         self.solver_debug_mode = False
         # feasability / tolerance gaps
-        self.mosek_tolerance_gap = 1e-8
-        self.mosek_primal_feas_gap = 1e-8
-        self.mosek_dual_feas_gap = 1e-8
+        self.mosek_tolerance_gap = 1e-9
+        self.mosek_primal_feas_gap = 1e-9
+        self.mosek_dual_feas_gap = 1e-9
 
         # -----------------------------------------------------------------------------------
         # Control policy settings -- computing cost-to-go lower bound
