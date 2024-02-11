@@ -70,10 +70,12 @@ def random_uniform_graph_generator(
     goal_num: int = 5,
     goal_uniform: bool = False,
     options: ProgramOptions = ProgramOptions(),
+    random_seed = 1,
 ) -> T.Tuple[PolynomialDualGCS, T.List[T.List[Vertex]]]:
     gcs = PolynomialDualGCS(options)
     # full connectivity between edges (very unnecessary)
     # TODO: random connectivity? 3 neighbour connectivity?
+    np.random.seed(random_seed)
 
     def box(a, b):
         return Hyperrectangle([a], [b])
@@ -146,6 +148,29 @@ def random_uniform_graph_generator(
     gcs.solve_policy()
     return gcs, layers
 
+def plot_a_layered_graph(layers:T.List[T.List[Vertex]]):
+    fig = go.Figure()
+    def add_trace(x_min, x_max, y):
+        xs = [x_min,x_max]
+        ys = [y,y]
+        fig.add_trace(go.Scatter(x=xs, y=ys, line=dict(color="black") ))
+
+    y = len(layers)
+    for n, layer in enumerate(layers):
+        for v in layer:
+            if v.set_type == Hyperrectangle:
+                add_trace(v.convex_set.lb()[0], v.convex_set.ub()[0], y)
+            elif v.set_type == Point:
+                add_trace(v.convex_set.x()[0], v.convex_set.x()[0], y)
+        y -= 1
+
+    fig.update_layout(height=800, width=800, title_text="Graph view")
+    fig.update_layout(showlegend=False)
+    fig.update_layout(
+        yaxis=dict(scaleanchor="x"),  # set y-axis to have the same scaling as x-axis
+        yaxis2=dict(scaleanchor="x", overlaying="y", side="right"),  # set y-axis2 to have the same scaling as x-axis
+    )
+    return fig
 
 def build_m_step_horizon_from_layers(gcs:PolynomialDualGCS, layers:T.List[T.List[Vertex]], m:int, start_vertex:Vertex, layer_index:int, dx:float=0.1):
     new_gcs = PolynomialDualGCS(gcs.options)
