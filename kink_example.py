@@ -181,7 +181,7 @@ def build_m_step_horizon_from_layers(gcs:PolynomialDualGCS, layers:T.List[T.List
                 new_gcs.AddEdge(left_v, right_v, quadratic_cost)
 
     x, y, ms = new_gcs.get_true_cost_for_region_plot_2d(start_vertex.name, dx=dx)
-    display_gcs_graph(new_gcs.gcs)
+    # display_gcs_graph(new_gcs.gcs)
     return x, y, ms
 
 def display_gcs_graph(gcs, graph_name="temp") -> None:
