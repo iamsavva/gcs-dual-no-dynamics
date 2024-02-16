@@ -447,7 +447,7 @@ class PolynomialDualGCS:
             options = self.options
         assert vertex_name in self.vertices
         assert self.vertices[vertex_name].convex_set.PointInSet(
-            point, 1e-3
+            point, 1e-5
         )  # evaluate only on set
 
         start_vertex = self.gcs.AddVertex(Point(point), "start")
@@ -515,20 +515,23 @@ class PolynomialDualGCS:
             y.append(cost)
         return x, np.array(y)
     
-    def make_plots(self, vertex_name, dx=0.5):
+    def make_plots(self, vertex_name, dx=0.5, subtract_nsteps:int=None):
         x_true, y_true, ms_true = self.get_true_cost_for_region_plot_2d(vertex_name, dx)
         x_policy, y_policy = self.get_policy_cost_for_region_plot(vertex_name, dx)
 
+        if subtract_nsteps is None:
+            subtract_nsteps = 0
+        lower_bound_gap = (1 - (y_policy-subtract_nsteps)/(y_true-subtract_nsteps))*100
+
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=x_true, y=y_true, mode='lines', name="ground truth", line=dict(color="chartreuse") ))
-        fig.add_trace(go.Scatter(x=x_policy, y=y_policy, mode='lines', name="policy", line=dict(color="blue") ))
+        fig.add_trace(go.Scatter(x=x_true, y=y_true-subtract_nsteps, mode='lines', name="ground truth", line=dict(color="chartreuse") ))
+        fig.add_trace(go.Scatter(x=x_policy, y=y_policy-subtract_nsteps, mode='lines', name="policy", line=dict(color="blue") ))
 
         fig.update_layout(height=800, width=800, title_text="Value functions ")
         # fig.update_yaxes(title_text="Cost-to-go")
         # fig.update_xaxes(title_text="x")
         # fig.show()
 
-        lower_bound_gap = (1 - y_policy/y_true)*100
         INFO("polynomial policy statistics")
         INFO("max lower bound gap ", np.round(np.max(lower_bound_gap),2))
         INFO("mean lower bound gap ", np.round(np.mean(lower_bound_gap),2))
